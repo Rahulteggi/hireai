@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const OpenAI = require('openai');
 const multer = require('multer');
-const pdfParse = require('pdf-parse');
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -13,9 +12,10 @@ router.post('/', upload.single('resume'), async (req, res) => {
     const { jobDescription } = req.body;
     if (!jobDescription) return res.status(400).json({ message: 'Job description required' });
 
-    // Extract resume text from PDF
+    // Extract resume text from PDF if uploaded (lazy require to avoid startup crash)
     let resumeText = '';
     if (req.file) {
+      const pdfParse = require('pdf-parse/lib/pdf-parse');
       const pdfData = await pdfParse(req.file.buffer);
       resumeText = pdfData.text;
     }
@@ -61,7 +61,7 @@ async function analyzeKeywords(jd, resume) {
       {
         role: 'system',
         content:
-          'Analyze the job description and resume. Return JSON: { matchScore: number (0-100), presentKeywords: string[], missingKeywords: string[], topSkillsRequired: string[] }',
+          'Analyze the job description and resume. Return JSON: { "matchScore": number (0-100), "presentKeywords": string[], "missingKeywords": string[], "topSkillsRequired": string[] }',
       },
       {
         role: 'user',
@@ -81,7 +81,7 @@ async function rewriteBullets(jd, resume) {
       {
         role: 'system',
         content:
-          'Rewrite the resume bullet points to better match the job description. Use strong action verbs and quantify where possible. Return JSON: { bullets: string[] }',
+          'Rewrite the resume bullet points to better match the job description. Use strong action verbs and quantify where possible. Return JSON: { "bullets": string[] }',
       },
       { role: 'user', content: `JD:\n${jd}\n\nRESUME:\n${resume}` },
     ],
@@ -97,7 +97,7 @@ async function generateInterviewQuestions(jd) {
       {
         role: 'system',
         content:
-          'Generate likely interview questions for this role. Return JSON: { technical: string[], behavioral: string[], roleSpecific: string[] }',
+          'Generate likely interview questions for this role. Return JSON: { "technical": string[], "behavioral": string[], "roleSpecific": string[] }',
       },
       { role: 'user', content: `JD:\n${jd}` },
     ],
